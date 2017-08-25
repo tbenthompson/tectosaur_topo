@@ -52,6 +52,6 @@ def interior_evaluate(obs_pts, surf, fault, soln, sm, pr):
 
     interior_disp = -interior_integral(
         obs_pts, obs_pts, (m.pts, m.tris), soln, 'elasticT3', 3, 8, k_params, float_type,
-        fmm_params = [100, 3.0, 3000, 25]
+        # fmm_params = [100, 3.0, 3000, 25]
     )
     return interior_disp
