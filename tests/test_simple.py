@@ -64,14 +64,29 @@ def test_compare_to_okada():
     fault_L = 1.0
     top_depth = -0.5
     n_surf = 50
+    sm = 1.0
+    pr = 0.25
     n_fault = max(2, n_surf // 5)
 
     surf = make_free_surface(10, n_surf)
     fault = make_fault(fault_L, top_depth, n_fault)
     slip = np.array([[1, 0, 0] * fault[1].size]).flatten()
-    surf_pts, surf_disp = tt.solve_topo(surf, fault, slip)
-    sm = 1.0
-    pr = 0.25
+    surf_pts, surf_disp, soln = tt.solve_topo(surf, fault, slip, sm, pr)
     u = okada_exact(surf_pts, fault_L, top_depth, sm, pr)
     print_error(surf_pts, u, surf_disp)
     plot_results(surf_pts, surf[1], surf_disp)
+
+    nxy = 100
+    xs = np.linspace(-10, 10, nxy)
+    xs = np.linspace(-10, 10, nxy)
+    X, Y = np.meshgrid(xs, xs)
+    z = -4.0
+    obs_pts = np.array([X.flatten(), Y.flatten(), z * np.ones(Y.size)]).T.copy()
+
+    interior_disp = tt.interior_evaluate(obs_pts, surf, fault, soln, sm, pr)
+    interior_disp = interior_disp.reshape((nxy, nxy, 3))
+    plt.figure()
+    plt.pcolor(xs, xs, interior_disp[:,:,0])
+    plt.colorbar()
+    plt.title('at z = ' + ('%.3f' % z) + '    ux')
+    plt.show()

@@ -1,1 +1,1 @@
-from tectosaur_topo.interface import solve_topo
+from tectosaur_topo.interface import solve_topo, interior_evaluate
