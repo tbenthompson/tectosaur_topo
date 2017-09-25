@@ -11,7 +11,9 @@ from tectosaur.ops.mass_op import MassOp
 from tectosaur.ops.sum_op import SumOp
 
 from tectosaur_topo.solve import iterative_solve
-logger = tectosaur.setup_logger(__name__)
+
+import logging
+logger = logging.getLogger(__name__)
 
 @attr.s
 class Result:
