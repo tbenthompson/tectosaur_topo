@@ -71,10 +71,17 @@ def test_compare_to_okada():
     surf = make_free_surface(10, n_surf)
     fault = make_fault(fault_L, top_depth, n_fault)
     slip = np.array([[1, 0, 0] * fault[1].size]).flatten()
-    surf_pts, surf_disp, soln = tt.solve_topo(
+    pts, tris, fault_start_idx, soln = tt.solve_topo(
         surf, fault, slip, sm, pr,
         preconditioner = 'none'
     )
+
+    surf_pts_map = np.unique(tris[:fault_start_idx])
+    surf_pts = pts[surf_pts_map]
+    surf_disp_all = np.empty((np.max(surf_pts_map) + 1, 3))
+    surf_disp_all[tris[:fault_start_idx], :] = soln.reshape((-1, 3, 3))[:fault_start_idx]
+    surf_disp = surf_disp_all[surf_pts_map]
+
     u = okada_exact(surf_pts, fault_L, top_depth, sm, pr)
     print_error(surf_pts, u, surf_disp)
     plot_results(surf_pts, surf[1], surf_disp)
@@ -86,7 +93,7 @@ def test_compare_to_okada():
     z = -4.0
     obs_pts = np.array([X.flatten(), Y.flatten(), z * np.ones(Y.size)]).T.copy()
 
-    interior_disp = tt.interior_evaluate(obs_pts, surf, fault, soln, sm, pr)
+    interior_disp = tt.interior_evaluate(obs_pts, (pts, tris), soln, sm, pr)
     interior_disp = interior_disp.reshape((nxy, nxy, 3))
     plt.figure()
     plt.pcolor(xs, xs, interior_disp[:,:,0])

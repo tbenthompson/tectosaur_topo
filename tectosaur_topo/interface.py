@@ -15,10 +15,6 @@ from tectosaur_topo.solve import iterative_solve
 import logging
 logger = logging.getLogger(__name__)
 
-@attr.s
-class Result:
-    pass
-
 def solve_topo(surf, fault, fault_slip, sm, pr, **kwargs):
     float_type = kwargs.get('float_type', np.float32)
     k_params = [sm, pr]
@@ -59,20 +55,13 @@ def solve_topo(surf, fault, fault_slip, sm, pr, **kwargs):
         tol = kwargs.get('solver_tol', 1e-8),
         prec = kwargs.get('preconditioner', 'none')
     )
+    return m.pts, m.tris, m.get_start('fault'), soln
 
-    surf_pts, surf_disp = m.extract_pts_vals('surf', soln)
-    return surf_pts, surf_disp, soln
-
-def interior_evaluate(obs_pts, surf, fault, soln, sm, pr, **kwargs):
-    float_type = kwargs.get('float_type', np.float32)
-    k_params = [sm, pr]
-    m = CombinedMesh([('surf', surf), ('fault', fault)])
-
-    interior_disp = -interior_integral(
-        obs_pts, obs_pts, (m.pts, m.tris), soln, 'elasticT3',
+def interior_evaluate(obs_pts, m, soln, sm, pr, **kwargs):
+    return -interior_integral(
+        obs_pts, obs_pts, m, soln, 'elasticT3',
         kwargs.get('quad_far_order', 3),
         kwargs.get('quad_near_order', 8),
-        k_params, float_type,
+        [sm, pr], kwargs.get('float_type', np.float32),
         # fmm_params = [100, 3.0, 3000, 25]
     )
-    return interior_disp
