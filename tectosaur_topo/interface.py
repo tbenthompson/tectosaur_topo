@@ -43,53 +43,7 @@ def solve_topo(surf, fault, fault_slip, sm, pr):
     )
     iop = SumOp([T_op, mass_op])
 
-    # results = []
-    # for nva in range(5, 11):
-    #     print(nva)
-    #     iop = SparseIntegralOp(
-    #         nva, 2, 5, 2.0,
-    #         'elasticH3', k_params, m.pts, m.tris,
-    #         float_type,
-    #         farfield_op_type = FMMFarfieldBuilder(150, 3.0, 450)
-    #     )
-    #     results.append(iop.dot(np.ones(iop.shape[1])))
-    # import ipdb
-    # ipdb.set_trace()
-
-    # iop = SparseIntegralOp(
-    #     12, 2, 5, 3.0,
-    #     'elasticH3', k_params, m.pts, m.tris,
-    #     float_type,
-    #     farfield_op_type = FMMFarfieldBuilder(150, 3.0, 450)
-    # )
-
-    # from tectosaur.ops.dense_integral_op import DenseIntegralOp
-    # dense = DenseIntegralOp(
-    #     12, 3, 6, 2.0,
-    #     'elasticH3', k_params, m.pts, m.tris,
-    #     float_type
-    # )
-    # import ipdb
-    # ipdb.set_trace()
-
-    # U_op = SparseIntegralOp(
-    #     6, 2, 5, 2.0,
-    #     'elasticU3', k_params, m.pts, m.tris,
-    #     float_type,
-    #     farfield_op_type = FMMFarfieldBuilder(150, 3.0, 450)
-    # )
-    # iop2 = SumOp([U_op, mass_op])
-    iop2 = None
-
-    # A_op = SparseIntegralOp(
-    #     6, 2, 5, 2.0,
-    #     'elasticA3', k_params, m.pts, m.tris,
-    #     float_type,
-    #     farfield_op_type = FMMFarfieldBuilder(150, 3.0, 450)
-    # )
-    # iop2 = SumOp([A_op, mass_op])
-
-    soln = iterative_solve(iop, cs, iop2 = iop2)
+    soln = iterative_solve(iop, cs)
 
     surf_pts, surf_disp = m.extract_pts_vals('surf', soln)
 

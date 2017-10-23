@@ -8,44 +8,6 @@ from tectosaur.constraints import build_constraint_matrix
 import logging
 logger = logging.getLogger(__name__)
 
-def prec_solve_unconstrained(iop, cm, cmT):
-    def prec_f(x):
-        n = iop.shape[0]
-
-        def mv(v):
-            mv.iter += 1
-            logger.debug('inner iteration # ' + str(mv.iter))
-            return iop.ops[0].nearfield_no_correction_dot(v) + iop.ops[1].nearfield_dot(v)
-        mv.iter = 0
-
-        A = sparse.linalg.LinearOperator((n, n), matvec = mv)
-
-
-        soln = sparse.linalg.lgmres(A, cm.dot(x), tol = 1e-2)
-        return cmT.dot(soln[0])
-    return prec_f
-
-def prec_solve_constrained(iop, cm, cmT):
-    def prec_f(x):
-        n = cmT.shape[0]
-
-        def mv(v):
-            mv.iter += 1
-            logger.debug('inner iteration # ' + str(mv.iter))
-            cm_res = cm.dot(v)
-            # iop_res = iop.dot(cm_res)
-            iop_res = iop.ops[0].nearfield_no_correction_dot(cm_res) + iop.ops[1].nearfield_dot(cm_res)
-            out = cmT.dot(iop_res)
-            return out / mv.factor
-        mv.iter = 0
-        mv.factor = 1.0
-        mv.factor = np.mean(np.abs(mv(np.ones(n))))
-        A = sparse.linalg.LinearOperator((n, n), matvec = mv)
-
-        soln = sparse.linalg.lgmres(A, x, tol = 1e-2)
-        return soln[0]
-    return prec_f
-
 def prec_diagonal_matfree(n, mv):
     P = 1.0 / (mv(np.ones(n)))
     factor = np.mean(np.abs(P))
@@ -54,32 +16,12 @@ def prec_diagonal_matfree(n, mv):
         return P * x
     return prec_f
 
-def prec_opposite_order(iop2, cm, cmT):
-    def prec_f(x):
-        # return cmT.dot(iop2.dot(cm.dot(x)))
-        return iop2.dot(x)
-    return prec_f
-
 def prec_identity():
     def prec_f(x):
         return x
     return prec_f
 
-def prec_spilu(Aish):
-    P = scipy.sparse.linalg.spilu(Aish)
-    def prec_f(x):
-        return P.solve(x)
-    return prec_f
-
-def iterative_solve(iop, constraints, rhs = None, tol = 1e-8, iop2 = None):
-    timer = Timer(logger = logger)
-
-    cm, c_rhs = build_constraint_matrix(constraints, iop.shape[1])
-
-    cm = cm.tocsr()
-    cmT = cm.T
-    timer.report('assemble constraint matrix')
-
+def prec_spilu(cm, cmT, iop):
     near_reduced = None
     for M in iop.ops[0].nearfield.mat_no_correction[:4]:
         M_scipy = M.to_bsr().to_scipy()
@@ -88,7 +30,18 @@ def iterative_solve(iop, constraints, rhs = None, tol = 1e-8, iop2 = None):
             near_reduced = M_red
         else:
             near_reduced += M_red
-    timer.report('reduce nearfield')
+    P = scipy.sparse.linalg.spilu(near_reduced)
+    def prec_f(x):
+        return P.solve(x)
+    return prec_f
+
+def iterative_solve(iop, constraints, rhs = None, tol = 1e-8):
+    timer = Timer(logger = logger)
+
+    cm, c_rhs = build_constraint_matrix(constraints, iop.shape[1])
+    cm = cm.tocsr()
+    cmT = cm.T
+    timer.report('assemble constraint matrix')
 
     if rhs is None:
         rhs_constrained = cmT.dot(-iop.dot(c_rhs))
@@ -112,10 +65,7 @@ def iterative_solve(iop, constraints, rhs = None, tol = 1e-8, iop2 = None):
 
     # P = prec_identity()
     # P = prec_diagonal_matfree(n, mv)
-    # P = prec_solve_constrained(iop, cm, cmT)
-    # P = prec_solve_unconstrained(iop, cm, cmT)
-    # P = prec_opposite_order(iop2, cm, cmT)
-    P = prec_spilu(near_reduced)
+    P = prec_spilu(cm, cmT, iop)
     M = sparse.linalg.LinearOperator((n, n), matvec = P)
     timer.report("setup preconditioner")
 
