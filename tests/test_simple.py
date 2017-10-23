@@ -90,3 +90,6 @@ def test_compare_to_okada():
     plt.colorbar()
     plt.title('at z = ' + ('%.3f' % z) + '    ux')
     plt.show()
+
+if __name__ == "__main__":
+    test_compare_to_okada()
