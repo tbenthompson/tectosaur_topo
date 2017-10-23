@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 class Result:
     pass
 
-def solve_topo(surf, fault, fault_slip, sm, pr):
-    float_type = np.float32
+def solve_topo(surf, fault, fault_slip, sm, pr, **kwargs):
+    float_type = kwargs.get('float_type', np.float32)
     k_params = [sm, pr]
 
     m = CombinedMesh([('surf', surf), ('fault', fault)])
@@ -33,29 +33,46 @@ def solve_topo(surf, fault, fault_slip, sm, pr):
     ))
     cs.extend(free_edge_constraints(m.get_piece_tris('surf')))
 
-    mass_op = MassOp(3, m.pts, m.tris)
+    mass_op = MassOp(kwargs.get('quad_mass_order', 3), m.pts, m.tris)
 
     T_op = SparseIntegralOp(
-        6, 2, 5, 2.0,
-        'elasticT3', k_params, m.pts, m.tris,
+        kwargs.get('quad_vertadj_order', 6),
+        kwargs.get('quad_far_order', 2),
+        kwargs.get('quad_near_order', 5),
+        kwargs.get('quad_near_threshold', 2.0),
+        'elasticT3',
+        k_params,
+        m.pts,
+        m.tris,
         float_type,
-        farfield_op_type = FMMFarfieldBuilder(150, 3.0, 450)
+        farfield_op_type = FMMFarfieldBuilder(
+            kwargs.get('fmm_order', 150),
+            kwargs.get('fmm_mac', 3.0),
+            kwargs.get('pts_per_cell', 450)
+        )
     )
     iop = SumOp([T_op, mass_op])
 
-    soln = iterative_solve(iop, cs)
+    soln = iterative_solve(
+        iop,
+        cs,
+        tol = kwargs.get('solver_tol', 1e-8),
+        prec = kwargs.get('preconditioner', 'none')
+    )
 
     surf_pts, surf_disp = m.extract_pts_vals('surf', soln)
-
     return surf_pts, surf_disp, soln
 
-def interior_evaluate(obs_pts, surf, fault, soln, sm, pr):
-    float_type = np.float32
+def interior_evaluate(obs_pts, surf, fault, soln, sm, pr, **kwargs):
+    float_type = kwargs.get('float_type', np.float32)
     k_params = [sm, pr]
     m = CombinedMesh([('surf', surf), ('fault', fault)])
 
     interior_disp = -interior_integral(
-        obs_pts, obs_pts, (m.pts, m.tris), soln, 'elasticT3', 3, 8, k_params, float_type,
+        obs_pts, obs_pts, (m.pts, m.tris), soln, 'elasticT3',
+        kwargs.get('quad_far_order', 3),
+        kwargs.get('quad_near_order', 8),
+        k_params, float_type,
         # fmm_params = [100, 3.0, 3000, 25]
     )
     return interior_disp

@@ -71,7 +71,10 @@ def test_compare_to_okada():
     surf = make_free_surface(10, n_surf)
     fault = make_fault(fault_L, top_depth, n_fault)
     slip = np.array([[1, 0, 0] * fault[1].size]).flatten()
-    surf_pts, surf_disp, soln = tt.solve_topo(surf, fault, slip, sm, pr)
+    surf_pts, surf_disp, soln = tt.solve_topo(
+        surf, fault, slip, sm, pr,
+        preconditioner = 'none'
+    )
     u = okada_exact(surf_pts, fault_L, top_depth, sm, pr)
     print_error(surf_pts, u, surf_disp)
     plot_results(surf_pts, surf[1], surf_disp)

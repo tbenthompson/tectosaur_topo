@@ -35,7 +35,7 @@ def prec_spilu(cm, cmT, iop):
         return P.solve(x)
     return prec_f
 
-def iterative_solve(iop, constraints, rhs = None, tol = 1e-8):
+def iterative_solve(iop, constraints, rhs = None, **kwargs):
     timer = Timer(logger = logger)
 
     cm, c_rhs = build_constraint_matrix(constraints, iop.shape[1])
@@ -63,9 +63,14 @@ def iterative_solve(iop, constraints, rhs = None, tol = 1e-8):
     A = sparse.linalg.LinearOperator((n, n), matvec = mv)
     timer.report('setup linear operator')
 
-    # P = prec_identity()
-    # P = prec_diagonal_matfree(n, mv)
-    P = prec_spilu(cm, cmT, iop)
+    prec = kwargs.get('prec', 'none')
+    if prec == 'diag':
+        P = prec_diagonal_matfree(n, mv)
+    elif prec == 'ilu':
+        P = prec_spilu(cm, cmT, iop)
+    else:
+        P = prec_identity()
+
     M = sparse.linalg.LinearOperator((n, n), matvec = P)
     timer.report("setup preconditioner")
 
@@ -74,7 +79,9 @@ def iterative_solve(iop, constraints, rhs = None, tol = 1e-8):
         pass
 
     soln = sparse.linalg.gmres(
-        A, rhs_constrained, M = M, tol = tol, callback = report_res, restart = 500
+        A, rhs_constrained, M = M,
+        tol = kwargs.get('tol', 1e-8),
+        callback = report_res, restart = 500
     )
     timer.report("GMRES")
 
