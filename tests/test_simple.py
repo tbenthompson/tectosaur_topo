@@ -93,7 +93,7 @@ def test_compare_to_okada():
     z = -4.0
     obs_pts = np.array([X.flatten(), Y.flatten(), z * np.ones(Y.size)]).T.copy()
 
-    interior_disp = tt.interior_evaluate(obs_pts, (pts, tris), soln, sm, pr)
+    interior_disp = tt.evaluate_interior(obs_pts, (pts, tris), soln, sm, pr)
     interior_disp = interior_disp.reshape((nxy, nxy, 3))
     plt.figure()
     plt.pcolor(xs, xs, interior_disp[:,:,0])

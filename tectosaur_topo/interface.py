@@ -16,9 +16,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 def solve_topo(surf, fault, fault_slip, sm, pr, **kwargs):
-    float_type = kwargs.get('float_type', np.float32)
-    k_params = [sm, pr]
-
     m = CombinedMesh([('surf', surf), ('fault', fault)])
 
     cs = continuity_constraints(
@@ -37,10 +34,10 @@ def solve_topo(surf, fault, fault_slip, sm, pr, **kwargs):
         kwargs.get('quad_near_order', 5),
         kwargs.get('quad_near_threshold', 2.0),
         'elasticT3',
-        k_params,
+        [sm, pr],
         m.pts,
         m.tris,
-        float_type,
+        kwargs.get('float_type', np.float32),
         farfield_op_type = FMMFarfieldBuilder(
             kwargs.get('fmm_order', 150),
             kwargs.get('fmm_mac', 3.0),
@@ -57,7 +54,7 @@ def solve_topo(surf, fault, fault_slip, sm, pr, **kwargs):
     )
     return m.pts, m.tris, m.get_start('fault'), soln
 
-def interior_evaluate(obs_pts, m, soln, sm, pr, **kwargs):
+def evaluate_interior(obs_pts, m, soln, sm, pr, **kwargs):
     return -interior_integral(
         obs_pts, obs_pts, m, soln, 'elasticT3',
         kwargs.get('quad_far_order', 3),
