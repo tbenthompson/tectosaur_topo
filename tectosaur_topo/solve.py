@@ -53,7 +53,6 @@ def iterative_solve(iop, constraints, rhs = None, **kwargs):
     def mv(v):
         t = Timer(logger = logger)
         mv.iter += 1
-        logger.debug('' + str(mv.iter))
         cm_res = cm.dot(v)
         iop_res = iop.dot(cm_res)
         out = cmT.dot(iop.dot(cm.dot(v)))

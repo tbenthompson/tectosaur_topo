@@ -1,5 +1,6 @@
 import attr
 import numpy as np
+import pprint
 
 import tectosaur
 from tectosaur.mesh.combined_mesh import CombinedMesh
@@ -10,12 +11,34 @@ from tectosaur.ops.sparse_integral_op import SparseIntegralOp, FMMFarfieldBuilde
 from tectosaur.ops.mass_op import MassOp
 from tectosaur.ops.sum_op import SumOp
 
-from tectosaur_topo.solve import iterative_solve
+import tectosaur_topo.solve
 
 import logging
 logger = logging.getLogger(__name__)
 
 def solve_topo(surf, fault, fault_slip, sm, pr, **kwargs):
+    cfg = dict(
+        quad_mass_order = 3,
+        quad_vertadj_order = 6,
+        quad_far_order = 2,
+        quad_near_order = 5,
+        quad_near_threshold = 2.0,
+        float_type = np.float32,
+        fmm_order = 150,
+        fmm_mac = 3.0,
+        pts_per_cell = 450,
+        solver_tol = 1e-8,
+        preconditioner = 'none',
+        verbose = True
+    )
+    cfg.update(kwargs)
+
+    if not cfg['verbose']:
+        tectosaur_topo.logger.setLevel(logging.WARNING)
+        tectosaur.logger.setLevel(logging.WARNING)
+
+    logger.debug('tectosaur_topo.solve_topo configuration: \n' + pprint.pformat(cfg))
+
     m = CombinedMesh([('surf', surf), ('fault', fault)])
 
     cs = continuity_constraints(
@@ -26,39 +49,34 @@ def solve_topo(surf, fault, fault_slip, sm, pr, **kwargs):
     ))
     cs.extend(free_edge_constraints(m.get_piece_tris('surf')))
 
-    mass_op = MassOp(kwargs.get('quad_mass_order', 3), m.pts, m.tris)
+    mass_op = MassOp(cfg['quad_mass_order'], m.pts, m.tris)
 
     T_op = SparseIntegralOp(
-        kwargs.get('quad_vertadj_order', 6),
-        kwargs.get('quad_far_order', 2),
-        kwargs.get('quad_near_order', 5),
-        kwargs.get('quad_near_threshold', 2.0),
-        'elasticT3',
-        [sm, pr],
-        m.pts,
-        m.tris,
-        kwargs.get('float_type', np.float32),
+        cfg['quad_vertadj_order'], cfg['quad_far_order'],
+        cfg['quad_near_order'], cfg['quad_near_threshold'],
+        'elasticT3', [sm, pr], m.pts, m.tris, cfg['float_type'],
         farfield_op_type = FMMFarfieldBuilder(
-            kwargs.get('fmm_order', 150),
-            kwargs.get('fmm_mac', 3.0),
-            kwargs.get('pts_per_cell', 450)
+            cfg['fmm_order'], cfg['fmm_mac'], cfg['pts_per_cell']
         )
     )
     iop = SumOp([T_op, mass_op])
 
-    soln = iterative_solve(
-        iop,
-        cs,
-        tol = kwargs.get('solver_tol', 1e-8),
-        prec = kwargs.get('preconditioner', 'none')
+    soln = tectosaur_topo.solve.iterative_solve(
+        iop, cs, tol =  cfg['solver_tol'], prec = cfg['preconditioner']
     )
     return m.pts, m.tris, m.get_start('fault'), soln
 
 def evaluate_interior(obs_pts, m, soln, sm, pr, **kwargs):
+    cfg = dict(
+        quad_far_order = 3,
+        quad_near_order = 8,
+        float_type = np.float32,
+    )
+    cfg.update(kwargs)
+    logger.debug('tectosaur_topo.evaluate_interior configuration: \n' + pprint.pformat(cfg))
+
     return -interior_integral(
         obs_pts, obs_pts, m, soln, 'elasticT3',
-        kwargs.get('quad_far_order', 3),
-        kwargs.get('quad_near_order', 8),
-        [sm, pr], kwargs.get('float_type', np.float32),
+        cfg['quad_far_order'], cfg['quad_near_order'], [sm, pr], cfg['float_type'],
         # fmm_params = [100, 3.0, 3000, 25]
     )
