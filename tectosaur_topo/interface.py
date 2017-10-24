@@ -16,6 +16,14 @@ import tectosaur_topo.solve
 import logging
 logger = logging.getLogger(__name__)
 
+def set_logging_levels(verbose):
+    if not verbose:
+        tectosaur_topo.logger.setLevel(logging.WARNING)
+        tectosaur.logger.setLevel(logging.WARNING)
+    else:
+        tectosaur_topo.logger.setLevel(logging.DEBUG)
+        tectosaur.logger.setLevel(logging.DEBUG)
+
 def solve_topo(surf, fault, fault_slip, sm, pr, **kwargs):
     cfg = dict(
         quad_mass_order = 3,
@@ -32,12 +40,8 @@ def solve_topo(surf, fault, fault_slip, sm, pr, **kwargs):
         verbose = True
     )
     cfg.update(kwargs)
-
-    if not cfg['verbose']:
-        tectosaur_topo.logger.setLevel(logging.WARNING)
-        tectosaur.logger.setLevel(logging.WARNING)
-
-    logger.debug('tectosaur_topo.solve_topo configuration: \n' + pprint.pformat(cfg))
+    set_logging_levels(cfg['verbose'])
+    logger.info('tectosaur_topo.solve_topo configuration: \n' + pprint.pformat(cfg))
 
     m = CombinedMesh([('surf', surf), ('fault', fault)])
 
@@ -71,9 +75,11 @@ def evaluate_interior(obs_pts, m, soln, sm, pr, **kwargs):
         quad_far_order = 3,
         quad_near_order = 8,
         float_type = np.float32,
+        verbose = True
     )
     cfg.update(kwargs)
-    logger.debug('tectosaur_topo.evaluate_interior configuration: \n' + pprint.pformat(cfg))
+    set_logging_levels(cfg['verbose'])
+    logger.info('tectosaur_topo.evaluate_interior configuration: \n' + pprint.pformat(cfg))
 
     return -interior_integral(
         obs_pts, obs_pts, m, soln, 'elasticT3',
