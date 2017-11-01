@@ -24,6 +24,11 @@ def set_logging_levels(verbose):
         tectosaur_topo.logger.setLevel(logging.DEBUG)
         tectosaur.logger.setLevel(logging.DEBUG)
 
+def check_valid_options(kwargs, cfg):
+    for k in kwargs:
+        if k not in cfg:
+            raise Exception(k + ' is not a valid config option')
+
 def solve_topo(surf, fault, fault_slip, sm, pr, **kwargs):
     cfg = dict(
         quad_mass_order = 3,
@@ -39,8 +44,10 @@ def solve_topo(surf, fault, fault_slip, sm, pr, **kwargs):
         preconditioner = 'none',
         verbose = True
     )
+    check_valid_options(kwargs, cfg)
     cfg.update(kwargs)
     set_logging_levels(cfg['verbose'])
+
     logger.info('tectosaur_topo.solve_topo configuration: \n' + pprint.pformat(cfg))
 
     m = CombinedMesh([('surf', surf), ('fault', fault)])
@@ -77,6 +84,7 @@ def evaluate_interior(obs_pts, m, soln, sm, pr, **kwargs):
         float_type = np.float32,
         verbose = True
     )
+    check_valid_options(kwargs, cfg)
     cfg.update(kwargs)
     set_logging_levels(cfg['verbose'])
     logger.info('tectosaur_topo.evaluate_interior configuration: \n' + pprint.pformat(cfg))

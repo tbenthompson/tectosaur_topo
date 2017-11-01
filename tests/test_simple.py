@@ -71,7 +71,10 @@ def test_compare_to_okada():
     surf = make_free_surface(10, n_surf)
     fault = make_fault(fault_L, top_depth, n_fault)
     slip = np.array([[1, 0, 0] * fault[1].size]).flatten()
-    pts, tris, fault_start_idx, soln = tt.solve_topo(surf, fault, slip, sm, pr)
+    pts, tris, fault_start_idx, soln = tt.solve_topo(
+        surf, fault, slip, sm, pr,
+        preconditioner = 'ilu'
+    )
 
     surf_pts_map = np.unique(tris[:fault_start_idx])
     surf_pts = pts[surf_pts_map]
