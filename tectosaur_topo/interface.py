@@ -53,7 +53,7 @@ def solve_topo(surf, fault, fault_slip, sm, pr, **kwargs):
     m = CombinedMesh([('surf', surf), ('fault', fault)])
 
     cs = continuity_constraints(
-        m.get_piece_tris('surf'), m.get_piece_tris('fault'), m.pts
+        m.get_piece_tris('surf'), m.get_piece_tris('fault')
     )
     cs.extend(all_bc_constraints(
         m.get_start('fault'), m.get_past_end('fault'), fault_slip
