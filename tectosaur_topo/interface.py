@@ -10,7 +10,7 @@ from tectosaur.interior import interior_integral
 from tectosaur.ops.sparse_integral_op import SparseIntegralOp, FMMFarfieldBuilder
 from tectosaur.ops.mass_op import MassOp
 from tectosaur.ops.sum_op import SumOp
-
+from tectosaur.check_for_problems import check_for_problems
 import tectosaur_topo.solve
 
 import logging
@@ -28,6 +28,15 @@ def check_valid_options(kwargs, cfg):
     for k in kwargs:
         if k not in cfg:
             raise Exception(k + ' is not a valid config option')
+
+def alert_mesh_problems(m):
+    intersections, sliver, short_tris, sharp_angles = check_for_problems((m.pts, m.tris))
+    if len(intersections) != 0:
+        raise Exception('There are intersecting elements in the meshes provided: ' + str(intersections))
+    if len(slivers) != 0 or len(short_tris) != 0:
+        raise Exception('There are sliver elements in the meshes provided: ' + str((sliver + short_tris)))
+    if len(sharp_angles) != 0:
+        raise Exception('There are very sharp angles between adjacent elements in the meshes provided: ' + str(sharp_angles))
 
 def solve_topo(surf, fault, fault_slip, sm, pr, **kwargs):
     cfg = dict(
