@@ -64,27 +64,35 @@ def solve_topo(surf, fault, fault_slip, sm, pr, **kwargs):
     cs = continuity_constraints(
         m.get_piece_tris('surf'), m.get_piece_tris('fault')
     )
-    cs.extend(all_bc_constraints(
-        m.get_start('fault'), m.get_past_end('fault'), fault_slip
-    ))
+    # cs.extend(all_bc_constraints(
+    #     m.get_start('fault'), m.get_past_end('fault'), fault_slip
+    # ))
     cs.extend(free_edge_constraints(m.get_piece_tris('surf')))
 
-    mass_op = MassOp(cfg['quad_mass_order'], m.pts, m.tris)
+    mass_op = MassOp(cfg['quad_mass_order'], m.pts, m.tris[:m.get_past_end('surf')])
 
-    T_op = SparseIntegralOp(
-        cfg['quad_vertadj_order'], cfg['quad_far_order'],
-        cfg['quad_near_order'], cfg['quad_near_threshold'],
-        'elasticT3', [sm, pr], m.pts, m.tris, cfg['float_type'],
-        farfield_op_type = FMMFarfieldBuilder(
-            cfg['fmm_order'], cfg['fmm_mac'], cfg['pts_per_cell']
+    def make_T(name1, name2):
+        return SparseIntegralOp(
+            cfg['quad_vertadj_order'], cfg['quad_far_order'],
+            cfg['quad_near_order'], cfg['quad_near_threshold'],
+            'elasticT3', [sm, pr], m.pts, m.tris, cfg['float_type'],
+            farfield_op_type = FMMFarfieldBuilder(
+                cfg['fmm_order'], cfg['fmm_mac'], cfg['pts_per_cell']
+            ),
+            obs_subset = m.get_piece_tri_idxs(name1),
+            src_subset = m.get_piece_tri_idxs(name2)
         )
-    )
-    iop = SumOp([T_op, mass_op])
+
+    Tuu_op = make_T('surf', 'surf')
+    Tus_op = make_T('surf', 'fault')
+    rhs = -Tus_op.dot(fault_slip)
+    iop = SumOp([Tuu_op, mass_op])
 
     soln = tectosaur_topo.solve.iterative_solve(
-        iop, cs, tol =  cfg['solver_tol'], prec = cfg['preconditioner']
+        iop, cs, rhs = rhs, tol = cfg['solver_tol'], prec = cfg['preconditioner']
     )
-    return m.pts, m.tris, m.get_start('fault'), soln
+    full_soln = np.concatenate((soln, fault_slip))
+    return m.pts, m.tris, m.get_start('fault'), full_soln
 
 def evaluate_interior(obs_pts, m, soln, sm, pr, **kwargs):
     cfg = dict(
