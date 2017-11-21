@@ -1,12 +1,12 @@
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
-
-import okada_wrapper
 
 import tectosaur_topo as tt
 import tectosaur.mesh.mesh_gen as mesh_gen
 
 def okada_exact(obs_pts, fault_L, top_depth, sm, pr):
+    import okada_wrapper
     lam = 2 * sm * pr / (1 - 2 * pr)
     alpha = (lam + sm) / (lam + 2 * sm)
     print(lam, sm, pr, alpha)
@@ -60,7 +60,7 @@ def make_fault(L, top_depth, n_fault):
         [L, 0, top_depth - 1], [L, 0, top_depth]
     ])
 
-def test_compare_to_okada():
+def main():
     fault_L = 1.0
     top_depth = -0.5
     n_surf = 50
@@ -71,7 +71,7 @@ def test_compare_to_okada():
     surf = make_free_surface(10, n_surf)
     fault = make_fault(fault_L, top_depth, n_fault)
     slip = np.array([[1, 0, 0] * fault[1].size]).flatten()
-    pts, tris, fault_start_idx, soln = tt.solve_topo(
+    pts, tris, fault_start_idx, soln = tt.forward(
         surf, fault, slip, sm, pr,
         preconditioner = 'ilu'
     )
@@ -82,8 +82,10 @@ def test_compare_to_okada():
     surf_disp_all[tris[:fault_start_idx], :] = soln.reshape((-1, 3, 3))[:fault_start_idx]
     surf_disp = surf_disp_all[surf_pts_map]
 
-    u = okada_exact(surf_pts, fault_L, top_depth, sm, pr)
-    print_error(surf_pts, u, surf_disp)
+    compare_okada = len(sys.argv) >= 2 and sys.argv[1] == 'compare'
+    if compare_okada:
+        u = okada_exact(surf_pts, fault_L, top_depth, sm, pr)
+        print_error(surf_pts, u, surf_disp)
     plot_results(surf_pts, surf[1], surf_disp)
 
     nxy = 100
@@ -93,7 +95,7 @@ def test_compare_to_okada():
     z = -4.0
     obs_pts = np.array([X.flatten(), Y.flatten(), z * np.ones(Y.size)]).T.copy()
 
-    interior_disp = tt.evaluate_interior(obs_pts, (pts, tris), soln, sm, pr)
+    interior_disp = tt.interior(obs_pts, (pts, tris), soln, sm, pr)
     interior_disp = interior_disp.reshape((nxy, nxy, 3))
     plt.figure()
     plt.pcolor(xs, xs, interior_disp[:,:,0])
@@ -102,4 +104,4 @@ def test_compare_to_okada():
     plt.show()
 
 if __name__ == "__main__":
-    test_compare_to_okada()
+    main()
