@@ -73,7 +73,8 @@ def main():
     slip = np.array([[1, 0, 0] * fault[1].size]).flatten()
     pts, tris, fault_start_idx, soln = tt.forward(
         surf, fault, slip, sm, pr,
-        preconditioner = 'ilu'
+        preconditioner = 'ilu',
+        log_level = 20
     )
 
     surf_pts_map = np.unique(tris[:fault_start_idx])
@@ -86,7 +87,10 @@ def main():
     if compare_okada:
         u = okada_exact(surf_pts, fault_L, top_depth, sm, pr)
         print_error(surf_pts, u, surf_disp)
-    plot_results(surf_pts, surf[1], surf_disp)
+
+    should_plot = len(sys.argv) < 3 or sys.argv[2] != 'noplot'
+    if should_plot:
+        plot_results(surf_pts, surf[1], surf_disp)
 
     nxy = 100
     xs = np.linspace(-10, 10, nxy)
@@ -97,11 +101,12 @@ def main():
 
     interior_disp = tt.interior(obs_pts, (pts, tris), soln, sm, pr)
     interior_disp = interior_disp.reshape((nxy, nxy, 3))
-    plt.figure()
-    plt.pcolor(xs, xs, interior_disp[:,:,0])
-    plt.colorbar()
-    plt.title('at z = ' + ('%.3f' % z) + '    ux')
-    plt.show()
+    if should_plot:
+        plt.figure()
+        plt.pcolor(xs, xs, interior_disp[:,:,0])
+        plt.colorbar()
+        plt.title('at z = ' + ('%.3f' % z) + '    ux')
+        plt.show()
 
 if __name__ == "__main__":
     main()

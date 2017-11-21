@@ -2,11 +2,26 @@ import numpy as np
 import scipy.sparse as sparse
 import scipy.sparse.linalg
 
+import tectosaur_topo
 from tectosaur.util.timer import Timer
 from tectosaur.constraints import build_constraint_matrix
 
 import logging
 logger = logging.getLogger(__name__)
+
+def forward_solve(system, fault_slip, **kwargs):
+    cfg = dict(
+        solver_tol = 1e-8,
+        preconditioner = 'none',
+        log_level = logging.DEBUG
+    )
+    cfg = tectosaur_topo.cfg.setup_cfg(cfg, kwargs)
+
+    m, lhs, rhs_op, cs = system
+    rhs = -rhs_op.dot(fault_slip)
+    soln = iterative_solve(lhs, cs, rhs, cfg)
+    full_soln = np.concatenate((soln, fault_slip))
+    return m.pts, m.tris, m.get_start('fault'), full_soln
 
 def prec_diagonal_matfree(n, mv):
     P = 1.0 / (mv(np.ones(n)))
@@ -35,7 +50,7 @@ def prec_spilu(cm, cmT, iop):
         return P.solve(x)
     return prec_f
 
-def iterative_solve(iop, constraints, rhs = None, **kwargs):
+def iterative_solve(iop, constraints, rhs, cfg):
     timer = Timer(logger = logger)
 
     cm, c_rhs = build_constraint_matrix(constraints, iop.shape[1])
@@ -60,7 +75,7 @@ def iterative_solve(iop, constraints, rhs = None, **kwargs):
     A = sparse.linalg.LinearOperator((n, n), matvec = mv)
     timer.report('setup linear operator')
 
-    prec = kwargs.get('prec', 'none')
+    prec = cfg['preconditioner']
     if prec == 'diag':
         P = prec_diagonal_matfree(n, mv)
     elif prec == 'ilu':
@@ -76,8 +91,7 @@ def iterative_solve(iop, constraints, rhs = None, **kwargs):
         pass
 
     soln = sparse.linalg.gmres(
-        A, rhs_constrained, M = M,
-        tol = kwargs.get('tol', 1e-8),
+        A, rhs_constrained, M = M, tol = cfg['solver_tol'],
         callback = report_res, restart = 500
     )
     timer.report("GMRES")

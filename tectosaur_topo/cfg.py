@@ -1,22 +1,27 @@
 import logging
+import inspect
+import pprint
 
 import tectosaur
 import tectosaur_topo
 
 from tectosaur.check_for_problems import check_for_problems
 
-def check_valid_options(kwargs, cfg):
-    for k in kwargs:
-        if k not in cfg:
-            raise Exception(k + ' is not a valid config option')
+def setup_cfg(defaults, kwargs):
+    cfg = dict()
+    for k, v in defaults.items():
+        if k in kwargs:
+            cfg[k] = kwargs[k]
+        else:
+            cfg[k] = defaults[k]
+    fnc_name = inspect.stack()[1][3]
+    tectosaur_topo.logger.info(str(fnc_name) + ' configuration: \n' + pprint.pformat(cfg))
+    tectosaur_topo.cfg.set_logging_levels(cfg['log_level'])
+    return cfg
 
-def set_logging_levels(verbose):
-    if not verbose:
-        tectosaur_topo.logger.setLevel(logging.WARNING)
-        tectosaur.logger.setLevel(logging.WARNING)
-    else:
-        tectosaur_topo.logger.setLevel(logging.DEBUG)
-        tectosaur.logger.setLevel(logging.DEBUG)
+def set_logging_levels(log_level):
+    tectosaur_topo.logger.setLevel(log_level)
+    tectosaur.logger.setLevel(log_level)
 
 def alert_mesh_problems(m):
     intersections, slivers, short_tris, sharp_angles = check_for_problems((m.pts, m.tris))
