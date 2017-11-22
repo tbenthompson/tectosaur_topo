@@ -79,7 +79,7 @@ def make_integral_op(m, k_name, k_params, cfg, name1, name2):
         cfg['quad_vertadj_order'], cfg['quad_far_order'],
         cfg['quad_near_order'], cfg['quad_near_threshold'],
         k_name, k_params, m.pts, m.tris, cfg['float_type'],
-        farfield_op_type = ,
+        farfield_op_type = farfield,
         obs_subset = m.get_piece_tri_idxs(name1),
         src_subset = m.get_piece_tri_idxs(name2)
     )
