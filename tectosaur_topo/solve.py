@@ -9,19 +9,27 @@ from tectosaur.constraints import build_constraint_matrix
 import logging
 logger = logging.getLogger(__name__)
 
-def forward_solve(system, fault_slip, **kwargs):
-    cfg = dict(
-        solver_tol = 1e-8,
-        preconditioner = 'none',
-        log_level = logging.DEBUG
-    )
-    cfg = tectosaur_topo.cfg.setup_cfg(cfg, kwargs)
+defaults = dict(
+    solver_tol = 1e-8,
+    preconditioner = 'none',
+    log_level = logging.DEBUG
+)
 
+def forward_solve(system, fault_slip, **kwargs):
+    cfg = tectosaur_topo.cfg.setup_cfg(defaults, kwargs)
     m, lhs, rhs_op, cs = system
-    rhs = -rhs_op.dot(fault_slip)
+    rhs = rhs_op.dot(fault_slip)
     soln = iterative_solve(lhs, cs, rhs, cfg)
     full_soln = np.concatenate((soln, fault_slip))
     return m.pts, m.tris, m.get_start('fault'), full_soln
+
+def adjoint_solve(system, surf_disp, **kwargs):
+    cfg = tectosaur_topo.cfg.setup_cfg(defaults, kwargs)
+    m, lhs, post_op, cs = system
+    rhs = m.get_vector_subset(surf_disp, 'surf')
+    soln = iterative_solve(lhs, cs, rhs, cfg)
+    to_slip = post_op.dot(soln)
+    return m.pts, m.tris, m.get_start('fault'), to_slip
 
 def prec_diagonal_matfree(n, mv):
     P = 1.0 / (mv(np.ones(n)))

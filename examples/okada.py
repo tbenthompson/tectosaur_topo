@@ -60,16 +60,21 @@ def make_fault(L, top_depth, n_fault):
         [L, 0, top_depth - 1], [L, 0, top_depth]
     ])
 
+
+def make_meshes(fault_L, top_depth, w, n_surf, n_fault):
+    surf = make_free_surface(w, n_surf)
+    fault = make_fault(fault_L, top_depth, n_fault)
+    return surf, fault
+
 def main():
-    fault_L = 1.0
-    top_depth = -0.5
-    n_surf = 50
     sm = 1.0
     pr = 0.25
+    fault_L = 1.0
+    top_depth = -0.5
+    w = 10
+    n_surf = 50
     n_fault = max(2, n_surf // 5)
-
-    surf = make_free_surface(10, n_surf)
-    fault = make_fault(fault_L, top_depth, n_fault)
+    surf, fault = make_meshes(fault_L, top_depth, w, n_surf, n_fault)
     slip = np.array([[1, 0, 0] * fault[1].size]).flatten()
     pts, tris, fault_start_idx, soln = tt.forward(
         surf, fault, slip, sm, pr,
