@@ -10,8 +10,8 @@ from okada import make_meshes
 import scipy.sparse
 
 def add_hill(surf):
-    hill_height = 0.1
-    hill_R = 7.0
+    hill_height = 0.2
+    hill_R = 0.5
     C = [0,0]
     x, y = surf[0][:,0], surf[0][:,1]
     z = hill_height * np.exp(
@@ -76,8 +76,16 @@ def get_vert_vals_linear(m, x):
     vert_vals /= vert_n_tris
     return vert_vals
 
+def slip_constraints(fault):
+    from tectosaur.constraint_builders import continuity_constraints, \
+        all_bc_constraints, free_edge_constraints
+    from tectosaur.constraints import build_constraint_matrix
+    cs = continuity_constraints(fault[1], np.zeros((0,3)))
+    cm, c_rhs = build_constraint_matrix(cs, fault[1].shape[0] * 9)
+    np.testing.assert_almost_equal(c_rhs, 0.0)
+    return cm
+
 def main():
-    log_level = logging.INFO
     fault_L = 1.0
     top_depth = -0.5
     w = 10
@@ -85,84 +93,65 @@ def main():
     n_fault = max(2, n_surf // 5)
     sm = 1.0
     pr = 0.25
+    cfg = dict(
+        log_level = logging.INFO,
+        preconditioner = 'ilu'
+    )
 
     flat_surf, fault = make_meshes(fault_L, top_depth, w, n_surf, n_fault)
     hill_surf = (flat_surf[0].copy(), flat_surf[1].copy())
     add_hill(hill_surf)
 
-    filename = 'examples/gfs.npy'
-    # np.save(filename, build_gfs(
-    #     hill_surf, fault, sm, pr,
-    #     log_level = log_level,
-    #     use_fmm = False
-    # ))
-    gfs = np.load(filename).T
-
     slip = np.array([[1, 0, 0] * fault[1].size]).flatten()
-    forward_system = tt.forward_assemble(hill_surf, fault, sm, pr, log_level = log_level)
+    forward_system = tt.forward_assemble(hill_surf, fault, sm, pr, **cfg)
     m = forward_system[0]
     pts, tris, fault_start_idx, soln = tt.forward_solve(
-        forward_system, slip, preconditioner = 'ilu', log_level = log_level
+        forward_system, slip, **cfg
     )
 
-    # soln = np.zeros(m.n_dofs('surf'))
-    # for i in range(fault[1].shape[0]):
-    #     for b in range(3):
-    #         soln += gfs.reshape((-1, fault[1].shape[0], 3, 3))[:, i, b, 0]
-    # soln = np.concatenate((soln, slip))
-    # plt.plot(m.get_vector_subset(soln, 'surf'), 'b.')
-    # plt.plot(soln2, 'r.')
-    # plt.show()
-
+    # Inversion parameters
     which_dims = [0, 1]
     obs_pt_idxs = m.get_piece_pt_idxs('surf')
-    inv_surf = flat_surf
     reg_param = 0.003
+    inv_surf = flat_surf
+
     soln_to_obs = build_soln_to_obs_map(forward_system[0], obs_pt_idxs, which_dims)
 
+    # For some reason, the whole problem behaves funny when I constrain the slip to be continuous!?
+    # slip_cm = slip_constraints(fault)
+
     u_hill = soln_to_obs.dot(soln)
-    n_slip = fault[1].shape[0] * 9
+
+    n_surf = m.n_dofs('surf')
+    n_slip = m.n_dofs('fault')
+    # n_slip_c = slip_cm.shape[1]
     n_data = u_hill.shape[0]
 
     # since the inv_surf is the same as surf, forward_system doesn't need to be regenerated.
-    forward_system = tt.forward_assemble(inv_surf, fault, sm, pr, log_level = log_level)
-    adjoint_system = tt.adjoint_assemble(forward_system, sm, pr, log_level = log_level)
+    forward_system = tt.forward_assemble(inv_surf, fault, sm, pr, **cfg)
+    adjoint_system = tt.adjoint_assemble(forward_system, sm, pr, **cfg)
     def mv(v):
-        _,_,_,soln = tt.forward_solve(forward_system, v, log_level = log_level)
+        # _,_,_,soln = tt.forward_solve(forward_system, slip_cm.dot(v), **cfg)
+        # return np.concatenate((soln_to_obs.dot(soln), slip_cm.T.dot(reg_param * slip_cm.dot(v))))
+        _,_,_,soln = tt.forward_solve(forward_system, v, **cfg)
         return np.concatenate((soln_to_obs.dot(soln), reg_param * v))
 
     def rmv(v):
         rhs = soln_to_obs.T.dot(v[:n_data])
-        _,_,_,soln = tt.adjoint_solve(adjoint_system, rhs, log_level = log_level)
+        _,_,_,soln = tt.adjoint_solve(adjoint_system, rhs, **cfg)
+        # return slip_cm.T.dot(soln) + slip_cm.T.dot(reg_param * slip_cm.dot(v[n_data:]))
         return soln + reg_param * v[n_data:]
 
-
-    # rand_data = np.random.rand(n_data)
-    # y1 = rmv(rand_data)
-    # y2 = gfs.T.dot(m.get_vector_subset(soln_to_obs.T.dot(rand_data), 'surf'))
-    # plt.plot(y1, 'b.')
-    # plt.plot(y2, 'r.')
-    # plt.show()
-
-    # rand_slip = np.random.rand(n_slip)
-    # x1 = mv(rand_slip)
-    # x2 = soln_to_obs.dot(np.concatenate((gfs.dot(rand_slip), rand_slip)))
-    # plt.plot(x1, 'b.')
-    # plt.plot(x2, 'r.')
-    # plt.show()
-
-    # np.testing.assert_almost_equal(x1, x2)
-    # np.testing.assert_almost_equal(y1, y2)
-
-    # A = np.concatenate((soln_to_obs[:,:m.n_dofs('surf')].dot(gfs), reg_param * np.identity(n_slip)))
-    # b = np.concatenate((u_hill, np.zeros(n_slip)))
-    # inverse_soln = np.linalg.lstsq(A, b)
-
+    # A = scipy.sparse.linalg.LinearOperator((n_data + n_slip_c, n_slip_c), matvec = mv, rmatvec = rmv)
+    # b = np.concatenate((u_hill, np.zeros(n_slip_c)))
     A = scipy.sparse.linalg.LinearOperator((n_data + n_slip, n_slip), matvec = mv, rmatvec = rmv)
     b = np.concatenate((u_hill, np.zeros(n_slip)))
     inverse_soln = scipy.sparse.linalg.lsmr(A, b, show = True)
 
-    vert_vals = get_vert_vals_linear(fault, inverse_soln[0].reshape((-1, 3, 3))[:,:,0])
+    # result = slip_cm.dot(inverse_soln[0])
+    result = inverse_soln[0]
+
+    vert_vals = get_vert_vals_linear(fault, result.reshape((-1, 3, 3))[:,:,0])
     triang = tri.Triangulation(fault[0][:,0], fault[0][:,2], fault[1])
     refiner = tri.UniformTriRefiner(triang)
     tri_refi, z_test_refi = refiner.refine_field(vert_vals, subdiv=3)
@@ -182,3 +171,89 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+# The penalty method seems to not change for W > 100 or so... why is that?
+# And it also doesn't converge to the same result as the Green's function approach. Why?
+def penalty_method():
+    _, flhs, rhs_op, cm, _ = forward_system
+    _, alhs, post_op, _, _ = adjoint_system
+    x0 = np.zeros(n_surf + n_slip)
+    W = 1.0
+    tol = 1e-5
+    for i in range(5):
+        W *= 10.0
+        tol /= 10.0
+        def mv2(v):
+            rows1 = soln_to_obs.dot(v)
+            rows2 = W * (flhs.dot(m.get_dofs(v, 'surf')) - rhs_op.dot(m.get_dofs(v, 'fault')))
+            rows3 = reg_param * m.get_dofs(v, 'fault')
+            return np.concatenate((rows1, rows2, rows3))
+
+        def rmv2(v):
+            v1 = v[:n_data]
+            v2 = v[n_data:-n_slip]
+            v3 = v[-n_slip:]
+            y1 = soln_to_obs.T.dot(v1)[:n_surf] + W * alhs.dot(v2)
+            y2 = -W * post_op.dot(v2) + reg_param * v3
+            return np.concatenate((y1, y2))
+
+        A2 = scipy.sparse.linalg.LinearOperator(
+            (n_data + n_surf + n_slip, n_surf + n_slip),
+            matvec = mv2, rmatvec = rmv2
+        )
+        b2 = np.concatenate((u_hill, np.zeros(n_surf + n_slip)))
+        b2 -= A2.dot(x0)
+        inverse_soln2 = scipy.sparse.linalg.lsmr(A2, b2, show = True, atol = tol, btol = tol)
+        x0 += inverse_soln2[0]
+    inverse_soln = [m.get_dofs(x0, 'fault')]
+
+
+
+
+# old, but I left this around for comparison...
+def gf_check_code():
+    # The full forward problem solution should be approximately to the sum of the proper Green's functions.
+
+    filename = 'examples/gfs.npy'
+    # np.save(filename, build_gfs(
+    #     hill_surf, fault, sm, pr,
+    #     log_level = log_level,
+    #     use_fmm = False
+    # ))
+    gfs = np.load(filename).T
+
+    # soln = np.zeros(m.n_dofs('surf'))
+    # for i in range(fault[1].shape[0]):
+    #     for b in range(3):
+    #         soln += gfs.reshape((-1, fault[1].shape[0], 3, 3))[:, i, b, 0]
+    # soln = np.concatenate((soln, slip))
+    # plt.plot(m.get_dofs(soln, 'surf'), 'b.')
+    # plt.plot(soln2, 'r.')
+    # plt.show()
+
+    # Check that the matrix-free Green's function matrix vector products are equal
+    # to the fully formed Green's function matrix vector products
+
+    # rand_data = np.random.rand(n_data)
+    # y1 = rmv(rand_data)
+    # y2 = gfs.T.dot(m.get_dofs(soln_to_obs.T.dot(rand_data), 'surf'))
+    # plt.plot(y1, 'b.')
+    # plt.plot(y2, 'r.')
+    # plt.show()
+
+    # rand_slip = np.random.rand(n_slip)
+    # x1 = mv(rand_slip)
+    # x2 = soln_to_obs.dot(np.concatenate((gfs.dot(rand_slip), rand_slip)))
+    # plt.plot(x1, 'b.')
+    # plt.plot(x2, 'r.')
+    # plt.show()
+
+    # np.testing.assert_almost_equal(x1, x2)
+    # np.testing.assert_almost_equal(y1, y2)
+
+    # A = np.concatenate((soln_to_obs[:,:m.n_dofs('surf')].dot(gfs), reg_param * np.identity(n_slip)))
+    # b = np.concatenate((u_hill, np.zeros(n_slip)))
+    # inverse_soln = np.linalg.lstsq(A, b)
+
