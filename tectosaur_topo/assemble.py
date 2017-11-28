@@ -33,7 +33,7 @@ defaults = dict(
 def forward_assemble(surf, fault, sm, pr, **kwargs):
     cfg = tectosaur_topo.cfg.setup_cfg(defaults, kwargs)
 
-    m = CombinedMesh([('surf', surf), ('fault', fault)])
+    m = CombinedMesh.from_named_pieces([('surf', surf), ('fault', fault)])
 
     # TODO: Need to fix bugs with check_for_problems before using this.
     # tectosaur_topo.cfg.alert_mesh_problems(m)
@@ -47,9 +47,9 @@ def forward_assemble(surf, fault, sm, pr, **kwargs):
 
 def constraints(m):
     cs = continuity_constraints(
-        m.get_piece_tris('surf'), m.get_piece_tris('fault')
+        m.get_tris('surf'), m.get_tris('fault')
     )
-    cs.extend(free_edge_constraints(m.get_piece_tris('surf')))
+    cs.extend(free_edge_constraints(m.get_tris('surf')))
 
     cm, c_rhs = build_constraint_matrix(cs, m.n_dofs('surf'))
     np.testing.assert_almost_equal(c_rhs, 0.0)
@@ -63,7 +63,7 @@ def forward_system(m, k_params, cfg):
     return lhs, rhs_op
 
 def make_mass_op(m, cfg):
-    return MassOp(cfg['quad_mass_order'], m.pts, m.tris[:m.get_past_end('surf')])
+    return MassOp(cfg['quad_mass_order'], m.pts, m.tris[:m.get_end('surf')])
 
 def adjoint_assemble(forward_system, sm, pr, **kwargs):
     cfg = tectosaur_topo.cfg.setup_cfg(defaults, kwargs)
@@ -90,8 +90,8 @@ def make_integral_op(m, k_name, k_params, cfg, name1, name2):
         cfg['quad_near_order'], cfg['quad_near_threshold'],
         k_name, k_params, m.pts, m.tris, cfg['float_type'],
         farfield_op_type = farfield,
-        obs_subset = m.get_piece_tri_idxs(name1),
-        src_subset = m.get_piece_tri_idxs(name2)
+        obs_subset = m.get_tri_idxs(name1),
+        src_subset = m.get_tri_idxs(name2)
     )
 
 def build_prec(which, cm, iop):
