@@ -21,7 +21,7 @@ def add_hill(surf):
 
 
 def build_soln_to_obs_map(m, obs_pt_idxs, which_dims):
-    tris = m.get_piece_tris('surf')
+    tris = m.get_tris('surf')
     surf_pts_map = np.unique(tris)
     surf_pts = m.pts[surf_pts_map]
     soln_to_obs = scipy.sparse.dok_matrix((
@@ -111,7 +111,7 @@ def main():
 
     # Inversion parameters
     which_dims = [0, 1]
-    obs_pt_idxs = m.get_piece_pt_idxs('surf')
+    obs_pt_idxs = m.get_pt_idxs('surf')
     reg_param = 0.003
     inv_surf = flat_surf
 
