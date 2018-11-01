@@ -33,7 +33,7 @@ def iterative_solve(iop, cm, rhs, prec, cfg):
     n = rhs_constrained.shape[0]
 
     def mv(v):
-        t = Timer(logger = logger)
+        t = Timer(output_fnc = logger.debug)
         mv.iter += 1
         out = cm.T.dot(iop.dot(cm.dot(v)))
         t.report('iteration # ' + str(mv.iter))
