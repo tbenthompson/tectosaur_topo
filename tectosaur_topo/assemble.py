@@ -5,8 +5,7 @@ from tectosaur.mesh.combined_mesh import CombinedMesh
 from tectosaur.constraint_builders import continuity_constraints, \
     all_bc_constraints, free_edge_constraints
 from tectosaur.constraints import build_constraint_matrix
-from tectosaur.ops.sparse_integral_op import SparseIntegralOp
-from tectosaur.ops.sparse_farfield_op import PtToPtFMMFarfieldOp
+from tectosaur.ops.sparse_farfield_op import FMMFarfieldOp
 from tectosaur.ops.mass_op import MassOp
 from tectosaur.ops.sum_op import SumOp
 from tectosaur.ops.neg_op import NegOp
@@ -78,22 +77,6 @@ def adjoint_system(m, k_params, cfg):
     post_op = NegOp(make_integral_op(m, 'elasticA3', k_params, cfg, 'fault', 'surf'))
     lhs = SumOp([make_integral_op(m, 'elasticA3', k_params, cfg, 'surf', 'surf')])
     return lhs, post_op
-
-def make_integral_op(m, k_name, k_params, cfg, name1, name2):
-    if cfg['use_fmm']:
-        farfield = PtToPtFMMFarfieldOp(
-            cfg['fmm_order'], cfg['fmm_mac'], cfg['pts_per_cell']
-        )
-    else:
-        farfield = None
-    return SparseIntegralOp(
-        cfg['quad_vertadj_order'], cfg['quad_far_order'],
-        cfg['quad_near_order'], cfg['quad_near_threshold'],
-        k_name, k_params, m.pts, m.tris, cfg['float_type'],
-        farfield_op_type = farfield,
-        obs_subset = m.get_tri_idxs(name1),
-        src_subset = m.get_tri_idxs(name2)
-    )
 
 def build_prec(which, cm, iop):
     if which == 'diag':
