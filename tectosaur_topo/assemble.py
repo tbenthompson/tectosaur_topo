@@ -1,8 +1,9 @@
 import numpy as np
 import scipy.sparse.linalg
 
+import tectosaur as tct
 from tectosaur.mesh.combined_mesh import CombinedMesh
-from tectosaur.constraint_builders import continuity_constraints, \
+from tectosaur.constraint_builders import \
     all_bc_constraints, free_edge_constraints
 from tectosaur.constraints import build_constraint_matrix
 from tectosaur.ops.sparse_farfield_op import FMMFarfieldOp
@@ -46,7 +47,7 @@ def forward_assemble(surf, fault, sm, pr, **kwargs):
     return m, lhs, rhs_op, cm, prec
 
 def constraints(m):
-    cs = continuity_constraints(
+    cs = tct.continuity_constraints(
         m.get_tris('surf'), m.get_tris('fault')
     )
     cs.extend(free_edge_constraints(m.get_tris('surf')))
